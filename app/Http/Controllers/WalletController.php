@@ -13,7 +13,13 @@ class WalletController extends Controller
      */
     public function index()
     {
-        $wallets = Wallet::where('user_id', Auth::user()->id)->get();
+        // $wallets = Wallet::with('user')->where('user_id', Auth::user()->id)->latest()->get()->groupBy(function ($item){
+        //     return $item->created_at->toDateString();
+        // });
+        $transactions = Wallet::with('user')->where('user_id', Auth::user()->id)->latest()->get()->groupBy(function ($item){
+            return $item->created_at->toDateString();
+        });
+        // $wallets = Wallet::get();
 
         return view('user.riwayat', compact('wallets'));
     }
@@ -66,7 +72,7 @@ class WalletController extends Controller
         //
     }
     public function TopUp(Request $request){
-        Wallet::create($request->all());
+        Wallet::create($request->all());    
 
         return redirect()->back();
     }
@@ -82,4 +88,4 @@ class WalletController extends Controller
         ]);
         return redirect()->back()->with('status','Sudah Diambil');
     }             
-}
+}   

@@ -15,7 +15,7 @@ return new class extends Migration
     {
         Schema::create('wallets', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained('users');
+            $table->foreignId('user_id')->constrained('users')->onDelete('CASCADE');
             $table->double('credit')->nullable();
             $table->double('debit')->nullable();
             $table->enum('status', ['proses','diterima','ditolak'])->default('proses');

@@ -32,14 +32,21 @@ class HomeController extends Controller
             $products = Product::all();
             $carts =Transaction::where('user_id', Auth::user()->id)->where('status','dikeranjang')->get();
             $wallets = Wallet::where('user_id', Auth::user()->id)->where('status','diterima')->get();
+            $transactions = Transaction::where('user_id', Auth::user()->id)->orderBy('created_at','DESC')->paginate(5)->groupBy('order_id');
+            $keranjang = Transaction::where('status','dikeranjang')->get();      
             $credit = 0;
             $debit = 0;
+            $saldo = 0;
+            $total = 0;
             foreach ($wallets as $wallet) {
                 $credit += $wallet->credit;
                 $debit += $wallet->debit;
                 $saldo = $credit - $debit; 
             }
-            return view('user.index', compact('products','saldo','carts'));
+            foreach ($transactions as $transaction) {
+                $total = $transaction[0]->quantity * $transaction[0]->product->price;
+            }
+            return view('user.index', compact('products','saldo','carts','total','keranjang'));
         }
         elseif(Auth::user()->role == 'bank'){
             $wallets = Wallet::where('status','proses')->get();

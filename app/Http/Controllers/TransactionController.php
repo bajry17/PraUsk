@@ -14,39 +14,27 @@ class TransactionController extends Controller
      * Display a listing of the resource.
      */
     public function index()
-    {
+    {   
         if(Auth::user()->role == 'user'){
-        $transactions = Transaction::where('user_id', Auth::user()->id)->get();
-        $wallets = Wallet::where('user_id', Auth::user()->id)->get();
-        $quantity = 0;
-        $price = 0;
-        foreach ($transactions as $transaction) {
-            $total = $transaction->quantity * $transaction->product->price;
-        }
+        // $transactions = Transaction::where('user_id', Auth::user()->id)->get();
+        $transactions = Transaction::with('product','user')->where('user_id', Auth::user()->id)->latest()->get()->groupBy(function ($item){
+            return $item->created_at->toDateString();
+        });
+        $wallets = Wallet::with('user')->where('user_id', Auth::user()->id)->latest()->get()->groupBy(function ($item){
+            return $item->created_at->toDateString();
+        });
 
-        return view("user.riwayat", compact("transactions",'total','wallets'));
-        }elseif(Auth::user()->role == 'kantin'){
-            $wallets = Wallet::all();
-            $transactions = Transaction::all();
-            $quantity = 0;
-            $price = 0;
-            foreach ($transactions as $transaction) {
-                $total = $transaction->quantity * $transaction->product->price;
-            }
+        return view("user.riwayat", compact("transactions",'wallets'));
+        }else{
+            $transactions = Transaction::with('product','user')->latest()->get()->groupBy(function ($item){
+                return $item->created_at->toDateString();
+            });
+            $wallets = Wallet::with('user')->latest()->get()->groupBy(function ($item){
+                return $item->created_at->toDateString();
+            });
 
-            return view("kantin.riwayat", compact("transactions",'total','wallets'));
-        }
-        elseif(Auth::user()->role == 'bank'){
-            $transactions = Transaction::all();
-            $wallets = Wallet::all();
-            $quantity = 0;
-            $price = 0;
-            foreach ($transactions as $transaction) {
-                $total = $transaction->quantity * $transaction->product->price;
-            }
-
-                return view("kantin.riwayat", compact("transactions",'total','wallets'));
-                }   
+            return view("kantin.riwayat", compact("transactions",'wallets'));
+        }  
     }    
 
     /**
@@ -100,24 +88,53 @@ class TransactionController extends Controller
 
     }
 
+    public function transaksimantap() {
+        dd('hello world');
+    }
+
     public function AddToCart(Request $request)
     {
             $product_id = $request->product_id;
+            $quantity = $request->quantity;
             $products = Product::where('id', $product_id)->get();
             foreach ($products as $product) {
                 $stock = $product->stock;
             }
+            // $transaction = Transaction::where('user_id', Auth::user()->id)->where('status','dikeranjang')->where('product_id',$product_id)->get();
+            // foreach( $transaction as $ambil){
+            //     $quantity = $ambil->quantity;
+            // }
 
         if($stock < 0){
             return redirect()->back()->with('status','Stok Habis');
+        }elseif($request->quantity > $stock){
+            return redirect()->back()->with('status','Stok Kurang');
+        }
+        // elseif($transaction){
+        //     $quantity += $request->quantity; 
+        //     $transaction->save();
+        // }
+        $transaction = Transaction::where('user_id', Auth::user()->id)
+            ->where('product_id', $product_id)
+            ->where('status', 'dikeranjang')
+            ->first();
+            // dd($transaction);
+
+        if($transaction) {
+            // If the product is already in the cart, increase the quantity
+            $all = $transaction->quantity += $quantity;
+            if($stock < $all){
+                return redirect()->back()->with('status', 'stok kurang');
+            }else{
+                $transaction->save();
+                return redirect()->back()->with('status', 'Berhasil Add to Cart');
+            }
         }
         else{   
-            $waktu = date('YmdHis');
             $cart = Transaction::create([
                 'user_id' => $request->user_id,
                 'product_id'=> $request->product_id,
                 'quantity'=> $request->quantity,
-                'order_id' =>'ORD_'.$waktu,
             ]);
     
             return redirect()->back()->with('status','Masuk Keranjang');
@@ -125,10 +142,12 @@ class TransactionController extends Controller
     }
 
     public function paynow(Request $request){
-        $transactions = Transaction::where('id', $request->id)->where('status','dikeranjang')->get();
+        $transactions = Transaction::where('status','dikeranjang')->get();          
             foreach ($transactions as $transaction) {
                 $total = $transaction->quantity * $transaction->product->price;
                 $stock = $transaction->product->stock;
+                $product_id = $transaction->product->id;
+                $id= $transaction->id;
             }   
             $wallets = Wallet::where('user_id', Auth::user()->id)->where('status','diterima')->get();
             $credit = 0;
@@ -138,34 +157,74 @@ class TransactionController extends Controller
                 $debit += $wallet->debit;
                 $saldo = $credit - $debit; 
             }
-            if($saldo < $total)
+            if($transactions == null){
+                return redirect()->back()->with('status','Keranjang kosong silahkan tambah keranjang');
+            }else
             {
-                return redirect()->back()->with('status','Saldo Tidak Cukup');
-            }
-            else{
-                Wallet::create([
-                    'user_id'=> Auth::user()->id,
-                    'product_id'=> $request->product_id,
-                    'debit' => $total,
-                    'desc' => 'Membeli Barang',
-                    'status' => 'diterima'
-                ]);
-                Transaction::find($request->id)->update([
-                    'status' => 'dibayar'
-                ]);
-                Product::find($request->product_id)->update([
-                    'stock' => $stock - $request->quantity   
-                ]);       
-                return redirect()->back()->with('status','Berhasil dibayar');
+
+                if($saldo < $total)
+                {
+                    return redirect()->back()->with('status','Saldo Tidak Cukup');
+                }
+                else{
+                    Wallet::create([
+                        'user_id'=> Auth::user()->id,
+                        'product_id'=> $product_id,
+                        'debit' => $total,
+                        'desc' => 'Membeli Barang',
+                        'status' => 'diterima'
+                    ]);
+                    $waktu = date('YmdHis');
+                    Transaction::find($id)->update([
+                        'status' => 'dibayar',
+                        'order_id' =>'ORD_'.$waktu,  
+                    ]);
+                    Product::find($product_id)->update([
+                        'stock' => $stock - $request->quantity   
+                    ]);       
+                    return redirect()->back()->with('status','Berhasil dibayar');
+                }
             }
     }
+
     public function accept(Request $request){
         Transaction::find($request->id)->update([
-            'status' => 'diambil'
+            'status' => 'diambil',
         ]);
         return redirect()->back()->with('status','Sudah Diambil');
     }
     
+    public function downloadsingle($order_id){
+        $reports = Transaction::where('order_id',$order_id)->latest()->get();
+        $code = $order_id;
+        $total = 0;         
+        foreach ($reports as $report) {
+            $total += $report->product->price * $report->quantity;
+        } 
+        return view('download', compact('reports','code','total'));
+    }
+
+    public function downloadharian($date){
+        if(Auth::user()->role == 'user') {
+            $reports = Transaction::latest()->with("product")->where('users_id', Auth::user()->id)->where('status','diambil')->whereDate("created_at", "=", $date)->get();
+            $code = $date;
+            $total = 0;
+            foreach ($reports as $report) {
+                $total += $report->product->price * $report->quantity;
+            } 
+        } else {
+            $reports = Transaction::latest()->with("product")->where('status','diambil')->whereDate("created_at", "=", $date)->get();
+            $code = $date;
+            $total = 0;
+            foreach ($reports as $report) {
+                $total += $report->product->price * $report->quantity;
+            } 
+        }   
+
+
+        return view('downloadharian', compact('reports', 'code','total'));
+
+    }
 
 
 }

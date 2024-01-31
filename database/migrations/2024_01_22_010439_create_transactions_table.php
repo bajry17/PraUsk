@@ -13,9 +13,9 @@ return new class extends Migration
     {
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained('users');
-            $table->foreignId('product_id')->constrained('products');
-            $table->string('order_id');
+            $table->foreignId('user_id')->constrained('users')->onDelete('CASCADE');
+            $table->foreignId('product_id')->constrained('products')->onDelete('CASCADE');
+            $table->string('order_id')->nullable();
             $table->integer('quantity');
             $table->enum('status', ['dikeranjang','dibayar','diambil'])->default('dikeranjang');
             $table->timestamps();

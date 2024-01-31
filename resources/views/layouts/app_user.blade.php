@@ -50,7 +50,7 @@
                             @endif
                         @else
                         <li class="nav-item m-2">
-                            <a href="{{ route('home') }}" class="text-white" style="text-decoration: none;">Product</a>
+                            <a href="{{ route('home') }}" class="text-white" style="text-decoration: none;">Home</a>
                         </li>
                         <li class="nav-item m-2">
                             <a href="{{ route('transaction.index') }}" class="text-white" style="text-decoration: none;">Riwayat</a>
